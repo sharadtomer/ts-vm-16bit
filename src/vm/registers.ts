@@ -1,12 +1,16 @@
-export enum RegisterNames {
-    IP = "ip",
-    ACC = "accumulator",
-    R1 = "r1",
-    R2 = "r2",
-    R3 = "r3",
-    R4 = "r4",
-    R5 = "r5",
-    R6 = "r6",
-    R7 = "r7",
-    R8 = "r8"
+// gap of two because each register is 2 byte
+
+export const REGISTERS_COUNT = 10;
+
+export enum Registers {
+    IP = 0,
+    ACC = 2,
+    R1 = 4,
+    R2 = 6,
+    R3 = 8,
+    R4 = 10,
+    R5 = 12,
+    R6 = 14,
+    R7 = 16,
+    R8 = 18
 }

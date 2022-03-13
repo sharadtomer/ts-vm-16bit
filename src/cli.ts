@@ -1,56 +1,79 @@
 import config from "../config/config.json";
 import { IOHelper } from "./tools/IOHelper";
-import * as path from "path";
 import { createMemory } from "./vm/memory";
 import { CPU } from "./vm/cpu";
-import { Instructions } from "./vm/instructions";
+import { Instructions } from "./vm/instructions/instructions.enum";
+import { Registers } from "./vm/registers";
+import * as readline from "readline";
+import { stdin, stdout } from "process";
+import { threadId } from "worker_threads";
 
 export class CLI {
-
     ioHelper: IOHelper;
-    
+    readline: readline.Interface;
+    memory: DataView;
+    writableStream: Uint8Array;
+    memoryOffset: number;
+    cpu: CPU;
+
     constructor() {
         this.ioHelper = new IOHelper();
+        this.readline = readline.createInterface({
+            input: stdin,
+            output: stdout,
+        });
+
+        this._init();
     }
 
-    async run(){
-        // update this method with main cli functionality
-        
-        // create memory
-        const memory = createMemory(256);
-        const writableBytes = new Uint8Array(memory.buffer);
+    _init() {
+        this.memory = createMemory(256*256);
+        this.writableStream = new Uint8Array(this.memory.buffer);
+        this.memoryOffset = 0;
 
-        const cpu = new CPU(memory);
-        
+        this.cpu = new CPU(this.memory);
+    }
+
+    async run() {
+        // update this method with main cli functionality
+
+        // add instructions
 
         // move value to r1
-        writableBytes[0] = Instructions.MOV_LIT_R1;
-        writableBytes[1] = 0x12; //0x1234
-        writableBytes[2] = 0x34;
+        this.addInstructionToMemory(Instructions.MOV_MEM_REG, 0x01, 0x00, Registers.R1);
 
         // move value to r2
-        writableBytes[3] = Instructions.MOV_LIT_R2;
-        writableBytes[4] = 0xAB; //0xABCD
-        writableBytes[5] = 0xCD;
+        this.addInstructionToMemory(Instructions.MOV_LIT_REG, 0x00, 0x01, Registers.R2);
 
         // add register1 and register2
-        writableBytes[6] = Instructions.ADD_REG_REG;
-        writableBytes[7] = 2; // r1 index
-        writableBytes[8] = 3; // r2 index
+        this.addInstructionToMemory(Instructions.ADD_REG_REG, Registers.R1, Registers.R2);
 
-        cpu.debug();
+        // mov register to memory
+        this.addInstructionToMemory(Instructions.MOV_REG_MEM, Registers.ACC, 0x01, 0x00);
 
-        cpu.step();
-        cpu.debug();
+        // jump to start if not equals to 3
+        this.addInstructionToMemory(Instructions.JMP_NOT_EQ, 0x00, 0x03, 0x00, 0x00);
 
-        cpu.step();
-        cpu.debug();
+        this.cpu.debug();
+        this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+        this.cpu.viewMemoryAt(0x0100);
 
-        cpu.step();
-        cpu.debug();
-
+        this.readline.on("line", () => {
+            this.cpu.step();
+            this.cpu.debug();
+            this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+            this.cpu.viewMemoryAt(0x0100);
+        });
     }
 
-    
+    addInstructionToMemory(...instructionBytes) {
+        instructionBytes.forEach((byte) => {
+            this.writableStream[this.memoryOffset] = byte;
+            this.memoryOffset++;
+        });
+    }
 
+    resetMemoryOffSet() {
+        this.memoryOffset = 0;
+    }
 }

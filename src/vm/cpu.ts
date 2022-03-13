@@ -1,110 +1,122 @@
-import { Instructions } from "./instructions";
+import { execute_ADD_REG_REG } from "./instructions/arithmeticInstructions";
+import { Instructions } from "./instructions/instructions.enum";
+import { execute_JMP_NOT_EQ } from "./instructions/jumpInstructions";
+import { execute_MOV_LIT_REG, execute_MOV_MEM_REG, execute_MOV_REG_MEM } from "./instructions/moveInstructions";
 import { createMemory } from "./memory";
-import { RegisterNames } from "./registers";
-
+import { Registers } from "./registers";
 export class CPU {
-
     memory: DataView;
-    registers: DataView;
-    registersMap: {[key: string]: number};
+    registersMemory: DataView;
 
-    constructor(memory: DataView){
+    constructor(memory: DataView) {
         this.memory = memory;
         this._init();
     }
 
     // init cpu, assign registers and define instructions
-    private _init(){
-        const registerNamesArr = Object.keys(RegisterNames).map(key => RegisterNames[key]);
+    private _init() {
+        const registerNamesArr = Object.keys(Registers).filter(key => Number.isNaN(parseInt(key)));
         // create registers memory
-        this.registers = createMemory(registerNamesArr.length * 2);
-        // create register map of offset in the register memory
-        this.registersMap = registerNamesArr.reduce((map, name, i) => {
-            map[name] = i * 2;
-            return map;
-        },  {});
+        this.registersMemory = createMemory(registerNamesArr.length * 2);
     }
 
     // logs the current state of registers
-    debug(){
-        const registerNamesArr = Object.keys(RegisterNames).map(key => RegisterNames[key]);
-        registerNamesArr.forEach(name => {
-            console.log(`${name}: 0x${this.getRegister(name as RegisterNames).toString(16).padStart(4, "0")}`);
+    debug() {
+        const registerNamesArr = Object.keys(Registers).filter(key => Number.isNaN(parseInt(key)));
+        
+        registerNamesArr.forEach((name) => {
+            console.log(
+                `${name}: 0x${this.getRegister(Registers[name]).toString(16).padStart(4, "0")}`
+            );
         });
         console.log("");
     }
 
+    viewMemoryAt(add: number){
+        const next8Bytes = Array.from({length: 8}, (_, i) => {
+            return this.memory.getUint8(add + i);
+        }).map(val => `0x${val.toString(16).padStart(2, "0")}`);
+
+        console.log(`0x${add.toString(16).padStart(4, "0")}: ${next8Bytes.join(" ")}`);
+    }
+
     // get value of register by name
-    getRegister(name: RegisterNames){
-        if(!(name in this.registersMap)){
-            throw new Error(`getRegister: no such register '${name}'`);
+    getRegister(register: Registers) {
+        if (register >= this.registersMemory.byteLength) {
+            throw new Error(
+                `getRegister: register index exceeds available registers count '${register}'`
+            );
         }
 
-        return this.registers.getUint16(this.registersMap[name]);
+        return this.registersMemory.getUint16(register);
     }
 
     // set register value
-    setRegister(name: RegisterNames, value: number){
-        if(!(name in this.registersMap)){
-            throw new Error(`setRegister: no such register '${name}'`);
+    setRegister(register: Registers, value: number) {
+        if (register >= this.registersMemory.byteLength) {
+            throw new Error(
+                `setRegister: register index exceeds available registers count '${register}'`
+            );
         }
 
-        return this.registers.setUint16(this.registersMap[name], value);
+        return this.registersMemory.setUint16(register, value);
     }
-    
+
     // get the next value byte from memory
-    fetch(){
-        const nextInstructionAddr = this.getRegister(RegisterNames.IP);
+    fetch() {
+        const nextInstructionAddr = this.getRegister(Registers.IP);
         const instruction = this.memory.getUint8(nextInstructionAddr);
         // update instruction pointer
-        this.setRegister(RegisterNames.IP, nextInstructionAddr + 1);
+        this.setRegister(Registers.IP, nextInstructionAddr + 1);
         return instruction;
     }
 
     // get the next 16 bit value from memory
-    fetch16(){
-        const nextInstructionAddr = this.getRegister(RegisterNames.IP);
+    fetch16() {
+        const nextInstructionAddr = this.getRegister(Registers.IP);
         const instruction = this.memory.getUint16(nextInstructionAddr);
         // update instruction pointer
-        this.setRegister(RegisterNames.IP, nextInstructionAddr + 2);
+        this.setRegister(Registers.IP, nextInstructionAddr + 2);
         return instruction;
     }
 
     // execute an instruction
-    execute(instruction){
-        switch(instruction){
-
-            // move literal to r1
-            case Instructions.MOV_LIT_R1: {
-                const literal = this.fetch16();
-                this.setRegister(RegisterNames.R1, literal);
+    execute(instruction) {
+        switch (instruction) {
+            // move literal to register
+            case Instructions.MOV_LIT_REG: {
+                execute_MOV_LIT_REG(this);
                 return;
             }
 
-            // move literal to r2
-            case Instructions.MOV_LIT_R2: {
-                const literal = this.fetch16();
-                this.setRegister(RegisterNames.R2, literal);
+            // move reg to memry
+            case Instructions.MOV_REG_MEM: {
+                execute_MOV_REG_MEM(this);
+                return;
+            }
+
+            // move memory to reg
+            case Instructions.MOV_MEM_REG: {
+                execute_MOV_MEM_REG(this);
                 return;
             }
 
             // add register value to another register value
             case Instructions.ADD_REG_REG: {
-                const registerName1 = this.fetch();
-                const registerName2 = this.fetch();
-
-                const registerValue1 = this.registers.getUint16(registerName1 * 2);
-                const registerValue2 = this.registers.getUint16(registerName2 * 2);
-
-                this.setRegister(RegisterNames.ACC, registerValue1 + registerValue2);
+                execute_ADD_REG_REG(this);
                 return;
             }
-                
+
+            // jump to add if value not equal to acc value
+            case Instructions.JMP_NOT_EQ: {
+                execute_JMP_NOT_EQ(this);
+                return;
+            }
         }
     }
 
     // fetch and execute next instruction
-    step(){
+    step() {
         const instruction = this.fetch();
         return this.execute(instruction);
     }
