@@ -38,7 +38,59 @@ export class CLI {
         // update this method with main cli functionality
 
         // add instructions
+        this.testStack();
+        
 
+        this.cpu.debug();
+        this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+        this.cpu.viewMemoryAt(0xffff - 1 - 42, 44);
+
+        this.readline.on("line", () => {
+            this.cpu.step();
+            this.cpu.debug();
+            this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+            this.cpu.viewMemoryAt(0xffff - 1 - 42, 44);
+        });
+    }
+
+    testStack() {
+        const subrouteAddr = 0x3000;
+
+        // push value 0x3333, 0x2222, 0x1111 to stack
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x33, 0x33);
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x22, 0x22);
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x11, 0x11);
+
+        // move values to registers
+        this.addInstructionToMemory(Instructions.MOV_LIT_REG, 0x12, 0x34, Registers.R1);
+        this.addInstructionToMemory(Instructions.MOV_LIT_REG, 0x56, 0x78, Registers.R4);
+
+        // push number of arguments on stack
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x00, 0x00);
+
+        // call subroutine
+        this.addInstructionToMemory(Instructions.CAL_LIT, ((subrouteAddr & 0xff00) >> 8), (subrouteAddr & 0x00ff));
+
+        // push more values to stack after subroutine is finished executing
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x44, 0x44);
+
+        // define subroutine
+
+        // set subroutine address
+        this.memoryOffset = subrouteAddr;
+
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x01, 0x02);
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x03, 0x04);
+        this.addInstructionToMemory(Instructions.PSH_LIT, 0x05, 0x06);
+
+        this.addInstructionToMemory(Instructions.MOV_LIT_REG, 0x07, 0x08, Registers.R1);
+        this.addInstructionToMemory(Instructions.MOV_LIT_REG, 0x09, 0x0A, Registers.R8);
+
+        this.addInstructionToMemory(Instructions.RET);
+
+    }
+
+    testCountTill3(){
         // move value to r1
         this.addInstructionToMemory(Instructions.MOV_MEM_REG, 0x01, 0x00, Registers.R1);
 
@@ -53,17 +105,6 @@ export class CLI {
 
         // jump to start if not equals to 3
         this.addInstructionToMemory(Instructions.JMP_NOT_EQ, 0x00, 0x03, 0x00, 0x00);
-
-        this.cpu.debug();
-        this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
-        this.cpu.viewMemoryAt(0x0100);
-
-        this.readline.on("line", () => {
-            this.cpu.step();
-            this.cpu.debug();
-            this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
-            this.cpu.viewMemoryAt(0x0100);
-        });
     }
 
     addInstructionToMemory(...instructionBytes) {

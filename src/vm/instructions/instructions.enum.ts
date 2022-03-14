@@ -11,6 +11,17 @@ export enum Instructions {
     ADD_REG_REG = 0x14,
 
     // branching instructions
-    JMP_NOT_EQ = 0x15
+    JMP_NOT_EQ = 0x15,
+
+    // stack operations
+    PSH_LIT = 0x17,
+    PSH_REG = 0x18,
+    POP = 0x1A,
+
+    // subroutines
+    CAL_LIT = 0x5E,
+    CAL_REG = 0x5F,
+    RET = 0x60
+
 }
 
