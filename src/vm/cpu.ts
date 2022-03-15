@@ -1,3 +1,4 @@
+import { MemoryMapper } from "./devices/memoryMapper";
 import { execute_ADD_REG_REG } from "./instructions/arithmeticInstructions";
 import { execute_CAL_LIT, execute_CAL_REG, execute_RET } from "./instructions/branchingInstructions";
 import { Instructions } from "./instructions/instructions.enum";
@@ -7,11 +8,11 @@ import { execute_POP, execute_PSH_LIT, execute_PSH_REG, Stack } from "./instruct
 import { createMemory } from "./memory";
 import { Registers } from "./registers";
 export class CPU {
-    memory: DataView;
+    memory: MemoryMapper;
     registersMemory: DataView;
     stack: Stack;
 
-    constructor(memory: DataView) {
+    constructor(memory: MemoryMapper) {
         this.memory = memory;
         this._init();
     }
@@ -153,6 +154,11 @@ export class CPU {
                 execute_RET(this);
                 return;
             }
+
+            // halt
+            case Instructions.HALT: {
+                return true;
+            }
         }
     }
 
@@ -160,5 +166,13 @@ export class CPU {
     step() {
         const instruction = this.fetch();
         return this.execute(instruction);
+    }
+
+    // run instructions in cycle
+    run() {
+        const halt = this.step();
+        if(!halt){
+            setImmediate(() => this.run());
+        }
     }
 }

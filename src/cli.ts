@@ -6,7 +6,9 @@ import { Instructions } from "./vm/instructions/instructions.enum";
 import { Registers } from "./vm/registers";
 import * as readline from "readline";
 import { stdin, stdout } from "process";
-import { threadId } from "worker_threads";
+import { MemoryMapper } from "./vm/devices/memoryMapper";
+import { IMemoryMappedDevice } from "./vm/devices/memoryMappedDevice.interface";
+import { MemoryScreen, ScreenCommands } from "./vm/devices/screen";
 
 export class CLI {
     ioHelper: IOHelper;
@@ -14,6 +16,7 @@ export class CLI {
     memory: DataView;
     writableStream: Uint8Array;
     memoryOffset: number;
+    screenStartAddr: number;
     cpu: CPU;
 
     constructor() {
@@ -31,26 +34,60 @@ export class CLI {
         this.writableStream = new Uint8Array(this.memory.buffer);
         this.memoryOffset = 0;
 
-        this.cpu = new CPU(this.memory);
+        // create memory mapper
+        const memoryMapper = new MemoryMapper();
+        memoryMapper.setByteLength(this.memory.byteLength);
+        // set writable region
+        memoryMapper.map(this.memory as IMemoryMappedDevice, 0x0000, 0xffff);
+        // create screen
+        const screen = new MemoryScreen(16, 16);
+        const screenStartAdd = 0x4000;
+        this.screenStartAddr = 0x4000;
+        memoryMapper.map(screen, screenStartAdd, screenStartAdd + screen.width * screen.height, true);
+        // create CPU
+        this.cpu = new CPU(memoryMapper);
     }
 
     async run() {
         // update this method with main cli functionality
 
         // add instructions
-        this.testStack();
+        // this.testStack();
+        // this.testCountTill3();
+
+        this.writeScreen();
         
 
-        this.cpu.debug();
-        this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
-        this.cpu.viewMemoryAt(0xffff - 1 - 42, 44);
 
-        this.readline.on("line", () => {
-            this.cpu.step();
-            this.cpu.debug();
-            this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
-            this.cpu.viewMemoryAt(0xffff - 1 - 42, 44);
-        });
+        this.cpu.run();
+
+        
+        // this.cpu.debug();
+        // this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+
+        // this.readline.on("line", () => {
+        //     this.cpu.step();
+        //     this.cpu.debug();
+        //     this.cpu.viewMemoryAt(this.cpu.getRegister(Registers.IP));
+        // });
+    }
+
+    writeScreen() {
+        // write hello world
+        const writeCharToScreen = (char, command, position) => {
+            this.addInstructionToMemory(Instructions.MOV_LIT_REG, command, char.charCodeAt(0), Registers.R1);
+            this.addInstructionToMemory(Instructions.MOV_REG_MEM, Registers.R1, (this.screenStartAddr & 0xff00) >> 8, position);
+        };
+
+        // clear screen
+        writeCharToScreen(' ', ScreenCommands.Clear, 0);
+
+        const message = "hello binary!";
+        for(let i = 0; i < message.length; i++){
+            writeCharToScreen(message[i], ScreenCommands.None, i);
+        }
+        
+        this.addInstructionToMemory(Instructions.HALT);
     }
 
     testStack() {
@@ -105,6 +142,8 @@ export class CLI {
 
         // jump to start if not equals to 3
         this.addInstructionToMemory(Instructions.JMP_NOT_EQ, 0x00, 0x03, 0x00, 0x00);
+
+        this.addInstructionToMemory(Instructions.HALT);
     }
 
     addInstructionToMemory(...instructionBytes) {

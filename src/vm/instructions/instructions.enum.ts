@@ -21,7 +21,9 @@ export enum Instructions {
     // subroutines
     CAL_LIT = 0x5E,
     CAL_REG = 0x5F,
-    RET = 0x60
+    RET = 0x60,
 
+    // halt
+    HALT = 0xff
 }
 
